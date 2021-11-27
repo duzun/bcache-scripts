@@ -1,0 +1,99 @@
+#!/bin/bash
+
+# Tell bcache to write to the backing device and wait for it to finish writing.
+#
+# @git: https://github.com/duzun/bcache-scripts
+
+if [ "$1" = "service" ]; then
+    if [ "$(id -u)" -ne 0 ]; then
+        exec sudo $0 "$@"
+    fi
+
+    f=/etc/systemd/system/bcache-flush-on-shutdown.service 
+    if [ ! -s "$f" ]; then
+        cat > "$f" <<EOS
+[Unit]
+Description=Run bcache-flush at shutdown
+DefaultDependencies=no
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=$(realpath "$0")
+TimeoutSec=60
+
+[Install]
+WantedBy=shutdown.target
+
+EOS
+
+        systemctl daemon-reload
+        echo "bcache-flush-on-shutdown service created"
+    fi
+
+    systemctl status bcache-flush-on-shutdown || \
+    systemctl enable bcache-flush-on-shutdown
+
+    exit
+fi
+
+if [ -z "$1" ]; then
+    for i in /sys/block/bcache*; do 
+        echo ""
+        deviceName="${i##*/}"
+        if [ "$deviceName" = 'bcache*' ]; then
+            echo "no bcache device found"
+            exit 1
+        fi
+        echo "device:     $deviceName"
+        $0 "$deviceName"
+    done
+
+    exit
+fi
+
+deviceName="${1:-bcache0}"
+basePath=/sys/block/$deviceName/bcache/
+
+if [ ! -e "$basePath" ]; then
+    >&2 echo "no $deviceName device found"
+    exit 2
+fi
+
+writeback_percent=$(cat "$basePath/writeback_percent")
+cache_mode=$(awk -F'[' '{print $2}' "$basePath/cache_mode" | awk -F']' '{print $1}')
+dirty_data=$(cat "$basePath/dirty_data")
+dirtyCount=$(echo "$dirty_data" | tr -dc '[0-9]')
+
+if [ "$dirtyCount" -eq 0 ]; then 
+    echo ""
+    echo "no dirty data!"
+    exit
+fi
+
+if [ "$(id -u)" -ne 0 ]; then
+    exec sudo $0 "$@"
+fi
+
+trap "echo '$writeback_percent' > '$basePath/writeback_percent'" INT TERM EXIT
+
+echo 0 > "$basePath/writeback_percent"
+
+echo "cache_mode: $cache_mode"
+echo "writeback:  $writeback_percent%"
+echo "dirty_data: $dirty_data"
+
+i=
+[[ $- != *i* ]] && i=1
+
+while sleep 1; do
+    dirty_data=$(cat "$basePath/dirty_data")
+    [ -n "$i" ] && echo -e "\033[2A"
+    echo "dirty_data: $dirty_data       "
+    dirtyCount=$(echo "$dirty_data" | tr -dc '[0-9]')
+    if [ "$dirtyCount" -eq 0 ]; then break; fi
+done
+
+echo ""
+
+echo "$writeback_percent" > "$basePath/writeback_percent"

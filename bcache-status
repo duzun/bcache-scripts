@@ -1,0 +1,29 @@
+#!/bin/sh
+
+# Display bcache status
+#
+# @git: https://github.com/duzun/bcache-scripts
+
+deviceName="${1:-bcache0}"
+basePath=/sys/block/$deviceName/bcache
+
+# writethrough writeback writearound none
+cache_mode=$(awk -F'[' '{print $2}' "$basePath/cache_mode" | awk -F']' '{print $1}')
+dirty_data=$(cat "$basePath/dirty_data")
+state=$(cat "$basePath/state")
+io_errors=$(cat "$basePath/io_errors")
+cache_hr_5m=$(cat "$basePath/cache/stats_five_minute/cache_hit_ratio")
+cache_hr_1h=$(cat "$basePath/cache/stats_hour/cache_hit_ratio")
+cache_hr_1d=$(cat "$basePath/cache/stats_day/cache_hit_ratio")
+cache_hr_all=$(cat "$basePath/cache/stats_total/cache_hit_ratio")
+
+dirtyCount=$(echo "$dirty_data" | tr -dc '[0-9]')
+
+
+echo "cache_mode: $cache_mode"
+echo "state:      $state"
+[ "$dirtyCount" -ne 0 ] && \
+echo "dirty_data: $dirty_data"
+[ "$io_errors" -ne 0 ] && \
+echo "io_errors:  $io_errors"
+echo "cache_hit_ratios: $cache_hr_5m% $cache_hr_1h% $cache_hr_1d% $cache_hr_all% (5m 1h 1d tot)"

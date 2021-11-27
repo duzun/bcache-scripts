@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# Read the bcache mode
+#
+# @git: https://github.com/duzun/bcache-scripts
+
+deviceName="${1:-bcache0}"
+basePath=/sys/block/$deviceName/bcache/
+
+# writethrough writeback writearound none
+cache_mode=$(cat $basePath/cache_mode | awk -F'[' '{print $2}' | awk -F']' '{print $1}')
+
+echo $cache_mode;

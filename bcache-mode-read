@@ -1,0 +1,11 @@
+#!/bin/sh
+
+# Set bcache to writethrough mode (cache only reads)
+#
+# @git: https://github.com/duzun/bcache-scripts
+
+deviceName="${1:-bcache0}"
+basePath=/sys/block/$deviceName/bcache/
+
+# [writethrough] writeback writearound none
+echo "writethrough" | sudo tee $basePath/cache_mode
