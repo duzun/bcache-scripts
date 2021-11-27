@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# flush bcache just in case...
+
+case $1 in
+    pre) 
+        sync
+        /usr/local/bin/bcache-flush
+    ;;
+    post) 
+        # Do something on resume
+    ;;
+esac
